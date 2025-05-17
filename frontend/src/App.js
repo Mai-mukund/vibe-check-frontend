@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
-import io from "socket.io-client";
 import {
   FacebookShareButton,
   TwitterShareButton,
@@ -11,10 +9,7 @@ import {
 } from "react-share";
 import { motion } from "framer-motion";
 
-// Replace with your backend URL
-const BACKEND_URL = "http://localhost:5001";
-const socket = io(BACKEND_URL);
-
+// Quiz Questions
 const QUESTIONS = [
   {
     question: "What's your current vibe?",
@@ -43,50 +38,52 @@ const vibeMemes = {
 function App() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState([]);
-  const [results, setResults] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [userCount, setUserCount] = useState(0);
+  const [results, setResults] = useState(null);
+
+  // Store all quiz submissions in memory for this session
+  const [allSubmissions, setAllSubmissions] = useState([]);
+
+  // For fun: randomize a fake user count each time
+  const [userCount, setUserCount] = useState(() => Math.floor(Math.random() * 10 + 1));
 
   useEffect(() => {
-    socket.on("updateResults", (data) => {
-      setResults(data);
+    if (submitted) {
+      // Add current answers to allSubmissions
+      setAllSubmissions((prev) => [...prev, answers]);
+    }
+    // eslint-disable-next-line
+  }, [submitted]);
+
+  // Aggregate results from all submissions
+  useEffect(() => {
+    if (allSubmissions.length === 0) {
+      setResults(null);
+      return;
+    }
+    const agg = QUESTIONS.map((q, idx) => {
+      const counts = {};
+      q.options.forEach((opt) => (counts[opt] = 0));
+      allSubmissions.forEach((submission) => {
+        const ans = submission[idx];
+        if (ans && counts.hasOwnProperty(ans)) {
+          counts[ans]++;
+        }
+      });
+      return counts;
     });
-    socket.on("userCount", setUserCount);
-    // Fetch initial results
-    axios.get(`${BACKEND_URL}/results`).then((res) => setResults(res.data));
-    // Fetch user count if available
-    return () => {
-      socket.off("updateResults");
-      socket.off("userCount");
-    };
-  }, []);
+    setResults(agg);
+  }, [allSubmissions]);
 
   const handleOption = (option) => {
     setAnswers([...answers, option]);
     if (step < QUESTIONS.length - 1) {
       setStep(step + 1);
     } else {
-      submitQuiz([...answers, option]);
+      setSubmitted(true);
+      setShareUrl(window.location.href);
     }
-  };
-
-  const submitQuiz = (finalAnswers) => {
-    setLoading(true);
-    setError(null);
-    axios
-      .post(`${BACKEND_URL}/submit`, { answers: finalAnswers })
-      .then(() => {
-        setSubmitted(true);
-        setShareUrl(window.location.href);
-        setLoading(false);
-      })
-      .catch(() => {
-        setError("Submission failed! Please try again.");
-        setLoading(false);
-      });
   };
 
   const handleRestart = () => {
@@ -94,10 +91,9 @@ function App() {
     setAnswers([]);
     setSubmitted(false);
     setShareUrl("");
-    setError(null);
   };
 
-  // Helper for playful confetti effect
+  // Confetti animation
   const Confetti = () => (
     <div style={{
       pointerEvents: "none",
@@ -130,7 +126,7 @@ function App() {
     </div>
   );
 
-  // Helper for animated progress bar
+  // Progress bar
   const ProgressBar = ({ value, max }) => (
     <div style={{ width: "100%", background: "#e0e0e0", borderRadius: 8, height: 10, margin: "18px 0" }}>
       <div
@@ -145,7 +141,7 @@ function App() {
     </div>
   );
 
-  // Helper for playful badge
+  // Playful badge
   const VibeBadge = ({ text }) => (
     <span style={{
       display: "inline-block",
@@ -161,7 +157,7 @@ function App() {
     }}>{text}</span>
   );
 
-  // For accessibility: focus first button on step change
+  // Accessibility: focus first button on step change
   useEffect(() => {
     if (!submitted) {
       const btn = document.querySelector("button[tabindex='0']");
@@ -205,20 +201,12 @@ function App() {
           Vibe Check Quiz
         </h1>
         <div style={{ textAlign: "center", marginBottom: 24, color: "#6c47ff", fontWeight: 500 }}>
-          <span style={{ fontSize: 22 }}>🚀</span> <span style={{ fontSize: 16 }}>Real-time, Playful, Shareable</span>
+          <span style={{ fontSize: 22 }}>🚀</span> <span style={{ fontSize: 16 }}>Playful & Shareable</span>
         </div>
-        {/* Live user count */}
+        {/* Live user count (fake/random for frontend only) */}
         <div style={{ fontWeight: "bold", margin: "12px 0", color: "#f7971e", textAlign: "center" }}>
           {userCount} users vibing right now!
         </div>
-        {/* Error message */}
-        {error && (
-          <div style={{ color: "red", textAlign: "center", marginBottom: 10 }}>{error}</div>
-        )}
-        {/* Loading state */}
-        {loading && (
-          <div style={{ color: "#6c47ff", textAlign: "center", marginBottom: 10 }}>Loading your vibe...</div>
-        )}
         {!submitted ? (
           <div>
             <div
@@ -302,7 +290,7 @@ function App() {
               fontSize: 22,
               textAlign: "center"
             }}>
-              🌍 Live Vibe Results
+              🌍 Vibe Results (This Session)
             </h3>
             {results ? (
               <div>
@@ -332,7 +320,7 @@ function App() {
                 ))}
               </div>
             ) : (
-              <p>Loading results...</p>
+              <p>No results yet.</p>
             )}
             {/* Social Share Buttons */}
             <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: 24, marginBottom: 18 }}>
