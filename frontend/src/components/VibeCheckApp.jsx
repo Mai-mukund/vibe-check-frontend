@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios"; // <-- import axios here
 import {
   FacebookShareButton,
@@ -69,6 +69,7 @@ const VibeCheckApp = () => {
       setSubmitted(true);
 
       try {
+        console.log(userId);
         await axios.post("http://localhost:5001/api/results", {
           userId: id,
           answers: newAnswers,
