@@ -1,17 +1,21 @@
 // Backend code for Vibe Check Quiz App
 
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
-var admin = require("firebase-admin");
-var serviceAccount = require("./firebase-adminsdk.json");
+const admin = require('firebase-admin');
 
+// Firebase config using environment variables
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: "https://vibe-check-quiz-ec2b8-default-rtdb.firebaseio.com"
+  credential: admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  }),
+  databaseURL: "https://vibe-check-quiz-ec2b8-default-rtdb.firebaseio.com",
 });
-
 
 const db = admin.database();
 
@@ -27,9 +31,6 @@ const io = socketIo(server, {
 app.use(cors());
 app.use(express.json());
 
-// Store quiz results in Firebase Realtime Database under 'results'
-// Structure: results/{questionIndex}/{option} = count
-
 // Endpoint to submit quiz answers
 app.post('/submit', async (req, res) => {
   try {
@@ -38,7 +39,6 @@ app.post('/submit', async (req, res) => {
       return res.status(400).json({ error: 'Invalid answers format' });
     }
 
-    // Update counts in Firebase
     const updates = {};
     answers.forEach((answer, index) => {
       const path = `results/${index}/${answer}`;
@@ -47,11 +47,9 @@ app.post('/submit', async (req, res) => {
 
     await db.ref().update(updates);
 
-    // Fetch updated results
     const snapshot = await db.ref('results').once('value');
     const results = snapshot.val() || {};
 
-    // Emit updated results to all clients
     io.emit('updateResults', results);
 
     res.json({ message: 'Answers submitted successfully' });
@@ -86,4 +84,3 @@ const PORT = process.env.PORT || 5001;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
